@@ -1,8 +1,6 @@
 module BigRiverSchneider
 
 
-
-
 using LinearAlgebra, Statistics   
 
 include("pca.jl")
