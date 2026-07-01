@@ -4,7 +4,7 @@ module BigRiverSchneider
 using LinearAlgebra, Statistics, Random
 
 
-include("common_functions.jl")
+include("utils.jl")
 
 include("pca.jl")
 export pcaStructure, pca, pca_transform, pca_invtransform
