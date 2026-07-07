@@ -64,9 +64,6 @@ We appreciate contributions from users including reporting bugs, fixing issues, 
 
 If you have questions about contributing or using `BigRiverEssence` package, please communicate with the authors via GitHub.
 
-## Citing `BigRiverEssence`
-
-????
 
 ## References
 
