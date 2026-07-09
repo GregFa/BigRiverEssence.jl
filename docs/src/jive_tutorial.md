@@ -86,7 +86,7 @@ pal = [:black, :green, :purple]
 colors = [pal[c] for c in clusters]
 ```
 
-## Figure 1: The variation explained
+## The variation explained
 
 Now we measure the fraction of the variance captured by the joint structure, the individual structure, and left as residual for each block. We plot them as a stacked bar plot. 
 
@@ -108,7 +108,7 @@ In the above bar plot, each bar shows how variation of one block divides between
 (individual), and noise. This is the main result of JIVE which shows how much of each data type
 is explained by structure common to all three versus structure unique to itself.
 
-## Figure 2: Heatmaps: Data = Joint + Individual + Noise
+## Heatmaps: Data = Joint + Individual + Noise
 
 Now we visualize the decomposition directly by displaying each block as the original data along with
 the joint, individual, and noise components. We order samples by clustering their
@@ -158,7 +158,7 @@ fig2 = plot(header, source_row(1), source_row(2), source_row(3);
     layout = grid(4, 1, heights = [0.08, 0.307, 0.307, 0.306]), size = (1500, 950))
 ```
 
-## Figure 3: Joint structure by cluster
+## Joint structure by cluster
 
 Now, we project the joint structure onto its principal components and color by the
 sample clusters. This shows us whether the shared variation separates the known tumor subtypes.
@@ -169,19 +169,29 @@ Fj = svd(vcat(res.J...))
 fmt = v -> string(round(v * 1e4, digits = 1))
 
 PCs = Diagonal(Fj.S[1:rJ]) * Fj.Vt[1:rJ, :]
-fig3 = scatter(PCs[2, :], PCs[1, :];
-    color = colors, markershape = :circle, markersize = 4,
-    markerstrokewidth = 1.2, markerstrokecolor = colors, markercolor = :white,
-    xlabel = "Joint 2  (×10⁻⁴)", ylabel = "Joint 1  (×10⁻⁴)",
+
+# plot each cluster as its own labeled series, so the legend maps color → cluster
+fig3 = plot(; xlabel = "Joint 2  (×10⁻⁴)", ylabel = "Joint 1  (×10⁻⁴)",
     title = "Joint Structure, colored by cluster",
-    legend = false, size = (550, 500), xformatter = fmt, yformatter = fmt)
+    legend = :outerright, size = (700, 500),
+    xformatter = fmt, yformatter = fmt)
+
+cluster_ids = sort(unique(clusters))
+for (i, c) in enumerate(cluster_ids)
+    idx = clusters .== c
+    scatter!(fig3, PCs[2, idx], PCs[1, idx];
+        color = pal[c], markershape = :circle, markersize = 4,
+        markerstrokewidth = 1.2, markerstrokecolor = pal[c], markercolor = :white,
+        label = "Cluster $c")
+end
+fig3
 ```
 
 
 We can see from the above plot, the joint structures (the variation shared across expression, methylation, and miRNA) were able to separate the sample clusters. This shows that the tumor subtypes differ in ways that are
 consistently reflected across all three molecular data types.
 
-## Figure 4 — Joint and individual components together
+## Joint and individual components together
 
 Now we construct a matrix of scatterplots where in each of them, we plot the first joint component against the first
 individual component of each block. This will shows us how joint and block-specific structure relate.
