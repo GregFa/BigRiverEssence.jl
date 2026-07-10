@@ -13,7 +13,6 @@ Aqua = "0.8.16, 1"
 DelimitedFiles = "1"
 LinearAlgebra = "1"
 MultivariateStats = "0.10.4"
-Random = "1"
 Statistics = "1"
 Test = "1"
 julia = "1"
@@ -25,4 +24,4 @@ MultivariateStats = "6f286f6a-111f-5878-ab1e-185364afe411"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Test", "Aqua", "MultivariateStats", "DelimitedFiles"]
+test = ["Aqua", "DelimitedFiles", "MultivariateStats", "Test"]
