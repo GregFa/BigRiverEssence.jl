@@ -68,3 +68,71 @@ function vip(m)
 	end
 	return sqrt.(p .* VIP)
 end
+
+#############################################
+# Shared SVD helpers used by JIVE and AJIVE #
+#############################################
+
+"""
+	_safe_svd(A)
+
+Compute an SVD, falling back to a slower but more robust algorithm if the
+default one fails to converge
+# Arguments
+- `A`: 2d array of floats; the matrix to decompose
+# Value
+An `SVD` factorization object. Tries the default divide-and-conquer SVD first;
+if it raises a `LAPACKException` (a convergence failure on certain ill-conditioned
+inputs), retries with the QR-iteration algorithm, which is slower but more stable.
+Any other error is rethrown
+"""
+function _safe_svd(A)
+	try
+		return svd(A)
+	catch e
+		e isa LinearAlgebra.LAPACKException || rethrow()   # only catch convergence failures
+		return svd(A; alg = LinearAlgebra.QRIteration())   # robust fallback
+	end
+end
+
+"""
+	_safe_svdvals(A)
+
+Compute singular values, falling back to a more robust algorithm if the default
+one fails to converge
+# Arguments
+- `A`: 2d array of floats; the matrix whose singular values are wanted
+# Value
+A vector of singular values. Like `_safe_svd`, retries with QR iteration on a
+`LAPACKException` and rethrows anything else
+"""
+function _safe_svdvals(A)
+	try
+		return svdvals(A)
+	catch e
+		e isa LinearAlgebra.LAPACKException || rethrow()
+		return svdvals(A; alg = LinearAlgebra.QRIteration())
+	end
+end
+
+"""
+	_safe_svd!(A)
+
+In-place variant of `_safe_svd`: compute an SVD, overwriting `A`, with a robust
+fallback on convergence failure
+# Arguments
+- `A`: 2d array of floats; the matrix to decompose, OVERWRITTEN in place by the
+  default path
+# Value
+An `SVD` factorization object. Tries the in-place `svd!` first; on a
+`LAPACKException` retries with the (non-mutating) QR-iteration SVD. Used in the
+inner JIVE iterations where the input is scratch that can be destroyed
+"""
+function _safe_svd!(A)
+	try
+		return svd!(A)
+	catch e
+		e isa LinearAlgebra.LAPACKException || rethrow()
+		return svd(A; alg = LinearAlgebra.QRIteration())
+	end
+end
