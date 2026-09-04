@@ -165,3 +165,57 @@ function _ajive_check_ranks(Xs::Vector{Matrix{Float64}}, init_ranks::Vector{Int}
     end
     return nothing # All rank validations passed
 end
+
+
+"""
+    _ajive_initial_signal_svd(Xs::Vector{Matrix{Float64}}, init_ranks::Vector{Int})
+
+Compute the initial signal SVD for each AJIVE data block. AJIVE Step 2 with a fixed joint rank: 
+vertically stack the transposed initial score-space bases and compute its SVD. 
+Returns a basis for the candidate common score directions and the corresponding singular values.
+
+# Arguments
+- `Xs`: A vector of Float64 matrices representing the AJIVE data blocks.
+- `init_ranks`: A vector of initial signal ranks for each block.
+
+# Values
+- `Us`: A vector of matrices containing the left singular vectors for each block.
+- `svals`: A vector of vectors containing the singular values for each block.
+- `Vs`: A vector of matrices containing the right singular vectors for each block.
+- `thresholds`: A vector of thresholds for separating signal from noise for each block.
+- `init_svals`: A vector of vectors containing the initial singular values for each block.
+"""    
+function _ajive_initial_signal_svd(Xs::Vector{Matrix{Float64}}, init_ranks::Vector{Int})
+
+    # Initialize the arrays for the initial signal SVD results
+    k = length(Xs)
+    Us = Vector{Matrix{Float64}}(undef, k)
+    svals = Vector{Vector{Float64}}(undef, k)
+    Vs = Vector{Matrix{Float64}}(undef, k)
+    thresholds = Vector{Float64}(undef, k)
+    init_svals = Vector{Vector{Float64}}(undef, k)
+
+    # Compute the initial signal SVD for each block
+    for b in 1:k
+        r = init_ranks[b]
+        F = _safe_svd(Xs[b])
+
+        # Extract the initial signal components from the SVD result
+        init_svals[b] = Vector{Float64}(@view F.S[1:(r + 1)])
+        
+        # Compute the threshold for separating signal from noise (based on the original implementation of AJIVE)
+        thresholds[b] = (F.S[r] + F.S[r + 1]) / 2
+        
+        # Extract the left singular vectors corresponding to the initial signal
+        Us[b] = Matrix{Float64}(@view F.U[:, 1:r])
+        
+        # Extract the singular values corresponding to the initial signal
+        svals[b] = Vector{Float64}(@view F.S[1:r])
+        
+        # Extract the right singular vectors corresponding to the initial signal
+        Vs[b] = Matrix{Float64}(transpose(@view F.Vt[1:r, :]))
+    end
+
+    return Us, svals, Vs, thresholds, init_svals
+end
+
