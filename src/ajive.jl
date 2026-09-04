@@ -53,3 +53,65 @@ struct Ajive{T}
     centered::Bool
     orientation::Symbol
 end
+
+"""
+    _ajive_prepare_blocks(Xs::AbstractVector{<:AbstractMatrix{<:Real}};
+        orientation::Symbol = :features_by_samples,
+        center::Bool = true)
+
+Prepare the data blocks for AJIVE by centering across samples if requested, converting to Float64, and 
+ensuring consistent orientation, (features × samples (`pᵢ×n`)).  
+
+# Arguments
+- `Xs`: Vector of data blocks, each a matrix of real numbers.
+- `orientation`: Symbol indicating the orientation of the input matrices (`:features_by_samples` or `:samples_by_features`).
+- `center`: Boolean indicating whether to center the features.
+
+# Value 
+- A tuple `(Xc, means, n)` where `Xc` is a vector of centered Float64 matrices in 
+canonical orientation (features × samples (`pᵢ×n`)), 
+`means` is a vector of feature means for each block, and `n` is the number of samples.
+"""
+function _ajive_prepare_blocks(Xs::AbstractVector{<:AbstractMatrix{<:Real}};
+    orientation::Symbol = :features_by_samples,
+    center::Bool = true)
+
+    length(Xs) >= 2 || throw(ArgumentError("AJIVE requires at least two data blocks"))
+    orientation in (:features_by_samples, :samples_by_features) ||
+        throw(ArgumentError("orientation must be :features_by_samples or :samples_by_features"))
+
+    # Prepare the data blocks: center if requested, ensure Float64 type, and check dimensions
+    k = length(Xs)
+    Xc = Vector{Matrix{Float64}}(undef, k)
+    means = Vector{Vector{Float64}}(undef, k)
+
+    # Convert each block to the canonical orientation and type, and center if requested    
+    for b in 1:k
+        X = Xs[b]
+        Y = if orientation === :features_by_samples
+            Float64.(X)
+        else
+            # Materialize the caller's n×p block directly into our canonical
+            # p×n Float64 layout in one allocation.
+            Float64.(permutedims(X))
+        end
+
+        size(Y, 1) > 0 && size(Y, 2) > 0 ||
+            throw(ArgumentError("AJIVE data blocks must be non-empty"))
+
+        if center
+            μ = mean(Y, dims = 2)
+            Y .-= μ
+            means[b] = vec(μ)
+        else
+            means[b] = zeros(Float64, size(Y, 1))
+        end
+        Xc[b] = Y
+    end
+
+    n = size(Xc[1], 2)
+    all(size(X, 2) == n for X in Xc) ||
+        throw(ArgumentError("all AJIVE blocks must contain the same number of samples"))
+
+    return Xc, means, n
+end
