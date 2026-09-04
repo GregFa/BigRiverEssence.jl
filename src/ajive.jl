@@ -115,3 +115,53 @@ function _ajive_prepare_blocks(Xs::AbstractVector{<:AbstractMatrix{<:Real}};
 
     return Xc, means, n
 end
+
+
+"""
+
+    _ajive_check_ranks(Xs, init_ranks, joint_rank, indiv_ranks = nothing)
+
+Check the validity of the initial, joint, and individual ranks for AJIVE data blocks.
+
+# Arguments
+- `Xs`: A vector of Float64 matrices representing the AJIVE data blocks.
+- `init_ranks`: A vector of initial signal ranks for each block.
+- `joint_rank`: The joint rank across all blocks.
+- `indiv_ranks`: (Optional) A vector of individual ranks for each block.
+
+# Throws
+- `ArgumentError` if any of the ranks are out of their valid ranges.
+"""
+function _ajive_check_ranks(Xs::Vector{Matrix{Float64}}, init_ranks::Vector{Int}, 
+    joint_rank::Int, indiv_ranks::Union{Nothing,Vector{Int}} = nothing)
+
+    k = length(Xs)
+    length(init_ranks) == k ||
+        throw(ArgumentError("one initial signal rank is required for each AJIVE block"))
+
+    # Validate that the initial signal ranks are within the valid range for each block    
+    for b in 1:k
+        # The maximum initial rank is one less than the minimum dimension of the block
+        max_init = min(size(Xs[b])...) - 1
+        # Validate that the initial rank is between 1 and max_init
+        (1 <= init_ranks[b] <= max_init) ||
+            throw(ArgumentError("initial signal rank for block $b must be between 1 and $max_init"))
+    end
+
+    # Validate that the joint rank is within the valid range
+    (0 <= joint_rank <= minimum(init_ranks)) ||
+        throw(ArgumentError("joint_rank must be between 0 and minimum(init_ranks)"))
+
+    # Validate the individual ranks if provided
+    if indiv_ranks !== nothing
+        length(indiv_ranks) == k ||
+            throw(ArgumentError("one individual rank is required for each AJIVE block"))
+        for b in 1:k
+            # The maximum individual rank is the minimum dimension of the block
+            max_indiv = min(size(Xs[b])...)
+            (0 <= indiv_ranks[b] <= max_indiv) ||
+                throw(ArgumentError("individual rank for block $b must be between 0 and $max_indiv"))
+        end
+    end
+    return nothing # All rank validations passed
+end
