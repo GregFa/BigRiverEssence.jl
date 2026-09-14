@@ -1,3 +1,10 @@
+# Implementation Notes:
+# This Julia implementation follows the improved kernel PLS algorithms of
+# Dayal and MacGregor (1997). Its interface and numerical behavior are
+# cross-validated against `Jchemo.plskern` from Jchemo.jl. The implementation
+# was streamlined to reuse work buffers and reduce per-component allocation.
+# https://github.com/mlesnoff/Jchemo.jl
+
 """
 	Plskern{T}
 

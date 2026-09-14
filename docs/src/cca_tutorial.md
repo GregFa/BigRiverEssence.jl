@@ -25,6 +25,13 @@ data sets. This provides it with numerical stability. Since classical CCA estima
 The result gives the canonical correlations and, for each side, the canonical
 directions — recovered so that the resulting variates have unit variance.
 
+> **Implementation note.** This CCA implementation was developed directly in
+> Julia from the SVD- and covariance-based formulations described by Weenink
+> (2003). It was re-engineered to choose numerically stable and dimension-aware
+> linear-algebra paths. Its results are independently validated against
+> [`MultivariateStats.CCA`](https://juliastats.org/MultivariateStats.jl/dev/cca/);
+> the MultivariateStats source code was not translated into this implementation.
+
 ## The data
 
 We use the `nutrimouse` dataset. The nutrimouse dataset comes from a nutrigenomic study in mice (Martin et al., 2007) [1],
@@ -170,3 +177,9 @@ In this document we used `cca` to find, given liver gene expression and lipid co
 [2] Rohart, F., Gautier, B., Singh, A., & Lê Cao, K.-A. (2017). mixOmics: An R package
     for 'omics feature selection and multiple data integration. *PLoS Computational
     Biology*, 13(11), e1005752.
+
+[3] Weenink, D. (2003). Canonical correlation analysis. *Proceedings of the
+    Institute of Phonetic Sciences, University of Amsterdam*, 25, 81–99.
+
+[4] JuliaStats contributors. *MultivariateStats.jl: A Julia package for
+    multivariate statistics and data analysis*.  https://github.com/JuliaStats/MultivariateStats.jl    

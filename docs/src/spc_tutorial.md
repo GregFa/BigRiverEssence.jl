@@ -18,6 +18,13 @@ In this documentation, we will demonstrate implementation of SPC using `BigRiver
 
 This package provides two variants: `spc`, which extracts components by deflation, and `spc_orth`, which constrains the component scores to be mutually orthogonal.
 
+> **Implementation note.** This implementation adapts and streamlines
+> [`PMA::SPC`](https://search.r-project.org/CRAN/refmans/PMA/html/SPC.html)
+> from the R package **PMA**. It retains the penalized-matrix-decomposition
+> formulation and orthogonal/non-orthogonal component options while
+> re-engineering the computation in Julia for lower intermediate memory
+> allocation and efficient execution.
+
 
 ## The data
 

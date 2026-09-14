@@ -1,3 +1,10 @@
+# Implementation provenance:
+# This Julia implementation follows the joint/individual alternating
+# decomposition and permutation-based rank-selection procedures implemented by
+# `r.jive`. It was re-engineered to compress wide blocks, reuse intermediate
+# storage, and improve execution efficiency.
+# https://search.r-project.org/CRAN/refmans/r.jive/html/jive.html
+
 """
 	Jive{T}
 

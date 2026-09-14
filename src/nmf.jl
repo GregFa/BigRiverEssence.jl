@@ -1,3 +1,10 @@
+# Implementation Notes:
+# This Julia implementation follows the objective, initialization methods,
+# alternating coordinate-descent updates, regularization scaling, and stopping
+# criterion of `sklearn.decomposition.NMF(solver="cd")`.
+# It was re-engineered for Julia's column-major matrix representation and to
+# reduce intermediate allocation.
+
 """
 	Nmf{T}
 

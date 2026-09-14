@@ -1,3 +1,10 @@
+# Implementation Notes:
+# This is a direct Julia implementation of the SVD- and covariance-based CCA
+# formulations described by Weenink (2003). It is independently validated
+# against `MultivariateStats.CCA`; MultivariateStats source code was not
+# translated into this implementation.
+# https://juliastats.org/MultivariateStats.jl/dev/cca/
+
 """
 	Cca{T}
 

@@ -9,6 +9,12 @@ The optimization problem mentioned above is solved by an alternating algorithm w
 
 In this documentation, we will depomstrate implementation of PMD using `BigRiverEssence.pmd` on a BigRiverEssenceast cancer dataset. This dataset has been taken from 
 
+> **Implementation note.** This implementation adapts and streamlines
+> [`PMA::PMD`](https://search.r-project.org/CRAN/refmans/PMA/html/PMD.html)
+> from the R package **PMA**. The alternating soft-thresholding and deflation
+> procedure of Witten, Tibshirani, and Hastie (2009) was re-engineered in Julia
+> with an emphasis on lower intermediate memory allocation and faster execution.
+
 ## The data
 
 The dataset used in this study contains DNA copy-number measurements at 2149 genomic locations (CGH

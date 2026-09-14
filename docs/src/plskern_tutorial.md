@@ -18,6 +18,13 @@ X B$, where the coefficient matrix $B$ is assembled from the accumulated weights
 a small value leads underfitting and vice versa.
 
 
+> **Implementation note.** This implementation follows the improved kernel PLS
+> algorithms of Dayal and MacGregor (1997) and is numerically validated against
+> [`Jchemo.plskern`](https://github.com/mlesnoff/Jchemo.jl). The method was
+> streamlined in Julia by reusing matrix and vector workspaces, with an emphasis
+> on lower intermediate memory allocation and efficient execution.
+
+
 ## The data
 
 The gasoline dataset (near-infrared spectra and octane numbers for 60 gasoline samples)
@@ -164,3 +171,7 @@ outperforms ordinary regression.
 
 [1] Kalivas, J. H. (1997). Two data sets of near infrared spectra. *Chemometrics and
     Intelligent Laboratory Systems*, 37, 255–259.
+
+[2] Dayal, B. S., & MacGregor, J. F. (1997). Improved PLS algorithms.
+    *Journal of Chemometrics*, 11(1), 73–85.
+    https://doi.org/10.1002/(SICI)1099-128X(199701)11:1%3C73::AID-CEM435%3E3.0.CO;2-%23
