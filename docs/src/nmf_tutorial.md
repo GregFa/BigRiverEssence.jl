@@ -17,6 +17,15 @@ the well-known `R` dataset `iris`. We will examine the reconstruction, visualize
 the sample scores and component profiles, and transform observations using the
 fitted model.
 
+> **Implementation note.** This implementation adapts the coordinate-descent
+> formulation used by
+> [`sklearn.decomposition.NMF`](https://scikit-learn.org/stable/modules/generated/sklearn.decomposition.NMF.html)
+> to Julia. The objective, regularization scaling, initialization methods, and
+> projected-gradient stopping rule follow the scikit-learn coordinate-descent
+> path. The implementation was re-engineered for Julia's column-major storage,
+> with an emphasis on lower intermediate memory allocation and efficient
+> execution. 
+
 ## The Dataset
 
 The `iris` dataset contains four flower measurements (sepal length, sepal width,
@@ -77,7 +86,7 @@ for coloring the later plot; they are not supplied to `nmf`, so this remains an
 unsupervised analysis.
 
 ```@example nmf
-m = BigRiverEssence.nmf(X; k = 3, tol = 1e-6, maxiter = 2000)
+m = nmf(X; k = 3, tol = 1e-6, maxiter = 2000)
 (m.reconstruction_error, m.niter, m.converged)
 ```
 

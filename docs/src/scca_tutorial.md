@@ -23,6 +23,13 @@ converge. We obtain further components by deflating the data. This is the
 penalized CCA method of Witten, Tibshirani & Hastie (2009). It is the same sparse-decomposition
 framework underlying `pmd` and `spc` and applied here across two data sets.
 
+> **Implementation note.** This implementation adapts and streamlines
+> [`PMA::CCA`](https://search.r-project.org/CRAN/refmans/PMA/html/CCA.html)
+> from the R package **PMA**. It preserves the penalized matrix decomposition,
+> sparse canonical-vector updates, and component-deflation procedure while
+> re-engineering the computation in Julia for lower intermediate memory
+> allocation and efficient execution.
+
 
 ## The data
 

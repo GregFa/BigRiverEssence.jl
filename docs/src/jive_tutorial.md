@@ -26,6 +26,14 @@ from the data by a permutation test where we consider a componet as a real signa
 singular value of that component exceeds what is seen after randomly permuting the data to destroy
 structure.
 
+> **Implementation note.** This implementation adapts and streamlines the
+> algorithms provided by the R package
+> [`r.jive`](https://search.r-project.org/CRAN/refmans/r.jive/html/jive.html).
+> It preserves the alternating estimation of joint and individual structure,
+> orthogonality handling, and permutation-based rank selection while
+> re-engineering the computation in Julia to compress wide blocks and reduce
+> intermediate memory allocation.
+
 ## The data
 
 We will consider the `BRCA` dataset. The BRCA dataset contains gene expression (654 genes), DNA methylation (574 CpG sites),
@@ -248,4 +256,5 @@ three data types, while the individual structures isolated what is unique to eac
     Variation Explained (JIVE) for integrated analysis of multiple data types. *The Annals
     of Applied Statistics*, 7(1), 523–542.
 
-[3] O'Connell, M. J., & Lock, E. F. (2020). r.jive: Perform JIVE Decomposition for Multi-Source Data. 10.32614/CRAN.package.r.jive
+[3] O'Connell, M. J., & Lock, E. F. (2020). r.jive: Perform JIVE Decomposition for Multi-Source Data. 10.32614/CRAN.package.r.  
+    jive

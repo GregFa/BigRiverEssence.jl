@@ -1,3 +1,10 @@
+# Implementation Notes:
+# This Julia implementation follows `PMA::CCA` from the R package PMA and the
+# sparse canonical correlation formulation of Witten, Tibshirani, and Hastie
+# (2009). It was re-engineered in Julia to reduce intermediate allocation and
+# improve execution efficiency.
+# https://search.r-project.org/CRAN/refmans/PMA/html/CCA.html
+
 """
 	Scca{T}
 
