@@ -219,3 +219,276 @@ function _ajive_initial_signal_svd(Xs::Vector{Matrix{Float64}}, init_ranks::Vect
     return Us, svals, Vs, thresholds, init_svals
 end
 
+
+"""
+    ajive_common_score_space(Vs::Vector{Matrix{Float64}}, init_ranks::Vector{Int}, n::Int)
+
+Compute the common score space from the right singular vectors of each block.
+
+# Arguments
+- `Vs`: A vector of matrices containing the right singular vectors for each block.
+- `init_ranks`: A vector of initial signal ranks for each block.
+- `n`: The number of samples (columns) in each block.   
+
+# Values
+- `Vcommon`: A matrix containing the left singular vectors corresponding to the common score space.
+- `common_svals`: A vector containing the singular values corresponding to the common score space.      
+
+"""
+function _ajive_common_score_space(Vs::Vector{Matrix{Float64}}, init_ranks::Vector{Int}, n::Int)
+
+    # Compute the common score space by vertically stacking the transposed 
+    # right singular vectors and computing their SVD
+    total_rank = sum(init_ranks)
+    M = Matrix{Float64}(undef, total_rank, n)
+    firstrow = 1
+    
+    # Fill the stacked matrix M with the transposed right singular vectors from each block
+    # This creates a combined matrix of all right singular vectors across blocks    
+    for b in eachindex(Vs)
+        r = init_ranks[b]
+        rows = firstrow:(firstrow + r - 1)
+        @views M[rows, :] .= transpose(Vs[b])
+        firstrow += r
+    end
+
+    # Compute the SVD of the stacked matrix to find the common score space
+    F = _safe_svd(M)
+    max_joint_rank = minimum(init_ranks)
+    
+    # Extract the left singular vectors corresponding to the maximum possible joint rank
+    Vcommon = Matrix{Float64}(transpose(@view F.Vt[1:max_joint_rank, :]))
+    
+    # Extract the singular values corresponding to the maximum possible joint rank
+    common_svals = Vector{Float64}(@view F.S[1:max_joint_rank])
+
+    return Vcommon, common_svals
+end
+
+"""
+    _ajive_check_identifiability(Xs::Vector{Matrix{Float64}},
+    VJ::Matrix{Float64}, thresholds::Vector{Float64})    
+
+Check the identifiability of the joint score space. A candidate joint 
+direction is retained only when its projection has singular-value 
+magnitude at least the Step-1 threshold in every block. Identifiable 
+means a candidate joint direction is supported by every data block 
+strongly enough to be considered real signal rather than noise.
+
+# Arguments
+- `Xs`: A vector of matrices containing the data for each block.
+- `VJ`: A matrix containing the left singular vectors corresponding to the joint score space.
+- `thresholds`: A vector of thresholds for each block.
+
+# Values
+- `VJ`: A matrix containing the left singular vectors corresponding to the identifiable joint score space.
+- `dropped`: A vector containing the indices of the dropped components.
+
+"""
+function _ajive_check_identifiability(Xs::Vector{Matrix{Float64}},
+    VJ::Matrix{Float64}, thresholds::Vector{Float64})
+
+    r = size(VJ, 2)
+    r == 0 && return VJ, Int[]
+
+    # A component is identifiable when every block's projection meets its threshold
+    identifiable = [all(norm(Xs[b] * view(VJ, :, j)) >= thresholds[b] for b in eachindex(Xs)) for j in 1:r]
+    dropped = findall(!, identifiable)
+
+    return Matrix{Float64}(VJ[:, identifiable]), dropped
+end
+
+"""
+_ajive_final_decomposition(Xs::Vector{Matrix{Float64}},
+    VJ::Matrix{Float64}, thresholds::Vector{Float64};
+    indiv_ranks::Union{Nothing,Vector{Int}} = nothing)
+
+Perform the final decomposition of the AJIVE data blocks into 
+joint, individual, and residual components. Reconstruct the joint 
+components using the joint score space and compute 
+the individual components by projecting the residuals 
+onto the individual score spaces. 
+The residuals are computed as the difference between 
+the original data and the sum of the joint and individual 
+components.
+
+# Arguments
+- `Xs`: A vector of matrices containing the data for each block.
+- `VJ`: A matrix containing the left singular vectors corresponding to the joint score space.
+- `thresholds`: A vector of thresholds for each block.
+- `indiv_ranks`: (Optional) A vector of individual ranks for each 
+    block. When not provided, the individual ranks are determined 
+    by the number of singular values of the joint-orthogonal block 
+    above the thresholds.
+
+# Values
+- `J`: A vector of matrices containing the joint components for 
+    each block.
+- `Iblocks`: A vector of matrices containing the individual 
+    components for each block.
+- `E`: A vector of matrices containing the residual components 
+    for each block.
+- `U`: A vector of matrices containing the joint loadings for 
+    each block.   
+- `Si`: A vector of matrices containing the individual scores 
+    for each block.
+- `Wi`: A vector of matrices containing the individual loadings 
+    for each block.
+- `ri`: A vector of integers containing the individual ranks 
+    for each block.
+"""
+function _ajive_final_decomposition(Xs::Vector{Matrix{Float64}},
+    VJ::Matrix{Float64}, thresholds::Vector{Float64};
+    indiv_ranks::Union{Nothing,Vector{Int}} = nothing)
+
+    k = length(Xs)
+    n = size(Xs[1], 2)
+    r = size(VJ, 2)
+
+    # Initialize the arrays for the final decomposition results
+    J = Vector{Matrix{Float64}}(undef, k)
+    Iblocks = Vector{Matrix{Float64}}(undef, k)
+    E = Vector{Matrix{Float64}}(undef, k)
+    U = Vector{Matrix{Float64}}(undef, k)
+    Si = Vector{Matrix{Float64}}(undef, k)
+    Wi = Vector{Matrix{Float64}}(undef, k)
+    ri = Vector{Int}(undef, k)
+
+    # Compute the joint, individual, and 
+    # residual components for each block
+    for b in 1:k
+        X = Xs[b]
+        p = size(X, 1)
+
+        # Compute the joint component for the current block
+        if r == 0
+            U[b] = zeros(Float64, p, 0)
+            J[b] = zeros(Float64, p, n)
+            Xorth = copy(X)
+        else
+            U[b] = X * VJ
+            J[b] = U[b] * transpose(VJ)
+            Xorth = X - J[b]
+        end
+
+        # Compute the individual components for the current 
+        # block
+        F = _safe_svd(Xorth)
+        # Determine the individual rank for the current block,
+        # either from the provided indiv_ranks or by counting
+        # the number of singular values above the threshold
+        rb = indiv_ranks === nothing ? count(>(thresholds[b]), F.S) : indiv_ranks[b]
+        max_indiv = min(p, n - r)
+        0 <= rb <= max_indiv ||
+            throw(ArgumentError("individual rank for block $b must be between 0 and $max_indiv after the final joint-rank check"))
+        ri[b] = rb
+
+        # Compute the individual components for the current block
+        if rb == 0
+            Si[b] = zeros(Float64, 0, n)
+            Wi[b] = zeros(Float64, p, 0)
+            Iblocks[b] = zeros(Float64, p, n)
+        else
+            Si[b] = Matrix{Float64}(@view F.Vt[1:rb, :])
+            Wi[b] = Matrix{Float64}(@view F.U[:, 1:rb]) * Diagonal(@view F.S[1:rb])
+            Iblocks[b] = Wi[b] * Si[b]
+        end
+
+        # Compute the residuals for the current block
+        E[b] = X - J[b] - Iblocks[b]
+    end
+
+    return J, Iblocks, E, U, Si, Wi, ri
+end
+
+"""
+
+    ajive(Xs; init_ranks, joint_rank, indiv_ranks=nothing,
+          orientation=:features_by_samples, center=true,
+          check_joint_identifiability=true)
+
+    Performs the AJIVE (Adaptive Joint and Individual Vectors Estimation) algorithm on a set of data matrices.
+
+    This implementation follows the three-step AJIVE construction of Feng,
+    Jiang, Hannig & Marron (2018), while deliberately leaving automatic joint-rank
+    selection (random-direction and Wedin bounds) for a subsequent extension.
+    Internally all blocks use the paper's features × samples convention (`pᵢ×n`).
+
+    # Arguments
+    - `Xs`: A vector of at least 2 data matrices containing the same samples in the same order.
+    - `init_ranks`: A vector of initial ranks for each data matrix.Because the
+        associated Step-1 threshold uses `σᵣ` and `σᵣ₊₁`, each rank must be at most
+        `min(pᵢ,n)-1`.
+    - `joint_rank`: Candidate joint rank used in Step 2. It must be between 0
+        and `minimum(init_ranks)`.
+    - `indiv_ranks`: An optional vector of individual ranks for each data matrix. 
+        If nothing, the individual ranks are computed by retaining singular values larger than the corresponding Step-1
+        threshold.
+    - `orientation`: `:features_by_samples` (default) for `pᵢ×n` input, or
+        `:samples_by_features` for `n×pᵢ` input. The latter is materialized once as
+        `pᵢ×n` before the AJIVE computation.
+    - `center`: Whether to center each feature across samples. Defaults to true.
+    - `check_joint_identifiability`: Whether to apply AJIVE's Step-3 check that
+        every candidate joint direction remains above the Step-1 signal threshold in
+        every block. Defaults to true. If a direction is dropped, the final `m.r` can
+        be smaller than the supplied `joint_rank`.
+
+    # Returns
+    - An `Ajive` object containing the results of the AJIVE algorithm. `J`, `I`, and `E` are always returned in the canonical
+    features × samples orientation and decompose the centered canonical blocks:
+    `X_centered = J + I + E`.
+
+    # Notes
+    The common normalized scores are stored in `m.S` with shape `r×n`. Their
+    transpose is the orthonormal basis `V_J` of the estimated joint score subspace.
+    The implementation avoids explicitly forming the `n×n` projector
+    `V_J * V_J'`; instead each joint block is computed as `(X * V_J) * V_J'`.
+"""
+function ajive(Xs::AbstractVector{<:AbstractMatrix{<:Real}};
+    init_ranks::Vector{Int},
+    joint_rank::Int,
+    indiv_ranks::Union{Nothing,Vector{Int}} = nothing,
+    orientation::Symbol = :features_by_samples,
+    center::Bool = true,
+    check_joint_identifiability::Bool = true)
+
+    # Prepare the data blocks: center if requested, ensure Float64 type, 
+    # and check dimensions
+    Xc, means, n = _ajive_prepare_blocks(Xs; orientation = orientation, center = center)
+    _ajive_check_ranks(Xc, init_ranks, joint_rank, indiv_ranks)
+
+    # Step 1: initial signal-space extraction.
+    _, _, Vs, thresholds, init_svals = _ajive_initial_signal_svd(Xc, init_ranks)
+
+    # Step 2: flag-mean/common score-space SVD.
+    Vcommon, common_svals = _ajive_common_score_space(Vs, init_ranks, n)
+    VJ = joint_rank == 0 ? zeros(Float64, n, 0) : Matrix(@view Vcommon[:, 1:joint_rank])
+
+    # Step 3a: ensure every candidate direction is signal in every block.
+    dropped_joint = Int[]
+    if check_joint_identifiability && joint_rank > 0
+        VJ, dropped_joint = _ajive_check_identifiability(Xc, VJ, thresholds)
+    end
+    r = size(VJ, 2)
+
+    # Step 3b: block-specific joint, individual, and residual matrices.
+    J, Iblocks, E, U, Si, Wi, ri = _ajive_final_decomposition(
+        Xc, VJ, thresholds; indiv_ranks = indiv_ranks)
+
+    S = Matrix{Float64}(transpose(VJ))
+    
+    return Ajive{Float64}(J, Iblocks, E, S, U, Si, Wi,
+        copy(init_ranks), joint_rank, r, ri, thresholds, init_svals,
+        common_svals, dropped_joint, means, center, orientation)
+end
+
+"""
+    ajive(Xs, init_ranks, joint_rank; kwargs...)
+
+Positional convenience form for supplying the initial signal ranks and joint
+rank. Equivalent to `ajive(Xs; init_ranks=init_ranks, joint_rank=joint_rank,
+kwargs...)`.
+"""
+ajive(Xs::AbstractVector{<:AbstractMatrix{<:Real}},
+    init_ranks::Vector{Int}, joint_rank::Int; kwargs...) =
+    ajive(Xs; init_ranks = init_ranks, joint_rank = joint_rank, kwargs...)
