@@ -28,7 +28,7 @@ structure.
 
 > **Implementation note.** This implementation adapts and streamlines the
 > algorithms provided by the R package
-> [`r.jive`](https://search.r-project.org/CRAN/refmans/r.jive/html/jive.html).
+> [`r.jive`](https://search.r-project.org/CRAN/refmans/r.jive/html/jive.html)[1].
 > It preserves the alternating estimation of joint and individual structure,
 > orthogonality handling, and permutation-based rank selection while
 > re-engineering the computation in Julia to compress wide blocks and reduce
@@ -38,8 +38,8 @@ structure.
 
 We will consider the `BRCA` dataset. The BRCA dataset contains gene expression (654 genes), DNA methylation (574 CpG sites),
 and miRNA expression (423 miRNAs) measured on the same 348 breast tumor samples from
-The Cancer Genome Atlas [1]. It is obtained via the r.jive R package [3], which implements
-the JIVE method [2].
+The Cancer Genome Atlas [2]. It is obtained via the r.jive R package [1], which implements
+the JIVE method [3].
 
 
 ```@example jive
@@ -248,13 +248,11 @@ three data types, while the individual structures isolated what is unique to eac
 
 ## References
 
-
-[1] Cancer Genome Atlas Network (2012). Comprehensive molecular portraits of human breast
+[1] O'Connell, M. J., & Lock, E. F. (2020). r.jive: Perform JIVE Decomposition for Multi-Source Data. 10.32614/CRAN.package.r.  
+    jive
+[2] Cancer Genome Atlas Network (2012). Comprehensive molecular portraits of human breast
     tumours. *Nature*, 490(7418), 61–70.
 
-[2] Lock, E. F., Hoadley, K. A., Marron, J. S., & Nobel, A. B. (2013). Joint and Individual
+[3] Lock, E. F., Hoadley, K. A., Marron, J. S., & Nobel, A. B. (2013). Joint and Individual
     Variation Explained (JIVE) for integrated analysis of multiple data types. *The Annals
     of Applied Statistics*, 7(1), 523–542.
-
-[3] O'Connell, M. J., & Lock, E. F. (2020). r.jive: Perform JIVE Decomposition for Multi-Source Data. 10.32614/CRAN.package.r.  
-    jive

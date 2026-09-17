@@ -14,7 +14,7 @@ and response loadings ($p$ and $q$) are used for describing how $X$ and $Y$ are 
 X B$, where the coefficient matrix $B$ is assembled from the accumulated weights and loadings.
 
 
-`plskern` of `BigRiverEssence` implements the improved kernel algorithms used by Dayal & MacGregor (1997) where they use  cross-product matrices for efficient computation. The number of components, `nlv`, is the main tuning parameter of `plskern` where 
+`plskern` of `BigRiverEssence` implements the improved kernel algorithms used by Dayal & MacGregor (1997)[1] where they use  cross-product matrices for efficient computation. The number of components, `nlv`, is the main tuning parameter of `plskern` where 
 a small value leads underfitting and vice versa.
 
 
@@ -28,7 +28,7 @@ a small value leads underfitting and vice versa.
 ## The data
 
 The gasoline dataset (near-infrared spectra and octane numbers for 60 gasoline samples)
-is from Kalivas (1997) [1], obtained via the R `pls` package. The NIR spectra were
+is from Kalivas (1997) [2], obtained via the R `pls` package. The NIR spectra were
 measured as log(1/R) from 900 to 1700 nm in 2 nm steps, giving 401 wavelengths.
 
 
@@ -169,9 +169,11 @@ outperforms ordinary regression.
 
 ## References
 
-[1] Kalivas, J. H. (1997). Two data sets of near infrared spectra. *Chemometrics and
-    Intelligent Laboratory Systems*, 37, 255–259.
-
-[2] Dayal, B. S., & MacGregor, J. F. (1997). Improved PLS algorithms.
+[1] Dayal, B. S., & MacGregor, J. F. (1997). Improved PLS algorithms.
     *Journal of Chemometrics*, 11(1), 73–85.
     https://doi.org/10.1002/(SICI)1099-128X(199701)11:1%3C73::AID-CEM435%3E3.0.CO;2-%23
+
+
+[2] Kalivas, J. H. (1997). Two data sets of near infrared spectra. *Chemometrics and
+    Intelligent Laboratory Systems*, 37, 255–259.
+
