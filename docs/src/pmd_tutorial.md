@@ -18,7 +18,7 @@ In this documentation, we will depomstrate implementation of PMD using `BigRiver
 ## The data
 
 The dataset used in this study contains DNA copy-number measurements at 2149 genomic locations (CGH
-spots) across 89 BigRiverEssenceast cancer samples along with chromosome and position of each spot. The dataset is obtained via the `PMA` R package, where it serves as the worked example for the penalized matrix decomposition of Witten, Tibshirani & Hastie (2009) [2].
+spots) across 89 BigRiverEssenceast cancer samples along with chromosome and position of each spot [1]. The dataset is obtained via the `PMA` R package, where it serves as the worked example for the penalized matrix decomposition of Witten, Tibshirani & Hastie (2009) [2].
 
 
 

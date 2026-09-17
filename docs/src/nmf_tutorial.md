@@ -99,8 +99,8 @@ The fitted `Nmf` object contains:
 - `m.niter`: the number of alternating iterations performed; and
 - `m.converged`: whether the requested stopping tolerance was reached.
 
-The default initialization is `:nndsvda`, when the requested rank permits it.
-The solver then uses alternating Fast HALS coordinate-descent updates while
+The default initialization is `:nndsvda`[1], when the requested rank permits it.
+The solver then uses alternating Fast HALS coordinate-descent updates[2] while
 maintaining nonnegative entries.
 
 ## Reconstruction plot
@@ -250,10 +250,12 @@ dimension reduction together with an additive, interpretable representation.
 
 ## References
 
-[1] Cichocki, A., & Phan, A.-H. (2009). Fast local algorithms for large scale
+[1] Boutsidis, C., & Gallopoulos, E. (2008). SVD based initialization: A head
+    start for nonnegative matrix factorization. *Pattern Recognition*, 41(4),
+    1350-1362.
+
+[2] Cichocki, A., & Phan, A.-H. (2009). Fast local algorithms for large scale
     nonnegative matrix and tensor factorizations. *IEICE Transactions on
     Fundamentals*, E92-A(3), 708-721.
 
-[2] Boutsidis, C., & Gallopoulos, E. (2008). SVD based initialization: A head
-    start for nonnegative matrix factorization. *Pattern Recognition*, 41(4),
-    1350-1362.
+
