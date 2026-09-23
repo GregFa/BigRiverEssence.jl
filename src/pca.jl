@@ -1,3 +1,10 @@
+# Implementation Note:
+# This is a direct Julia implementation of principal component analysis using
+# `LinearAlgebra.svd!` and `LinearAlgebra.eigen`. It was re-engineered to select
+# an efficient SVD- or covariance-based path according to the data dimensions.
+# https://docs.julialang.org/en/v1/stdlib/LinearAlgebra/
+
+
 """
 	Pca{T}
 

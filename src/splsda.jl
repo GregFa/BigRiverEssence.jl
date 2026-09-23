@@ -1,3 +1,10 @@
+# Implementation Notes:
+# This Julia implementation follows `mixOmics::splsda`, including mixOmics-style
+# dummy encoding, regression-mode deflation, and L1 soft thresholding controlled
+# through the number of variables retained per component. It was re-engineered
+# in Julia to reuse work arrays and reduce intermediate allocation.
+# https://mixomics.org/
+
 """
 	Splsda{T}
 

@@ -1,3 +1,10 @@
+# Implementation Notes:
+# This Julia implementation follows the regression-mode PLS-DA formulation used
+# by `mixOmics::plsda`, including dummy encoding of class labels and deflation
+# of X and Y using the X variate. It was re-engineered in Julia to reuse work
+# arrays and reduce intermediate allocation.
+# https://mixomics.org/
+
 """
 	Plsda{T}
 

@@ -18,10 +18,17 @@ In this documentation, we will demonstrate implementation of SPC using `BigRiver
 
 This package provides two variants: `spc`, which extracts components by deflation, and `spc_orth`, which constrains the component scores to be mutually orthogonal.
 
+> **Implementation note.** This implementation adapts and streamlines
+> [`PMA::SPC`](https://search.r-project.org/CRAN/refmans/PMA/html/SPC.html)
+> from the R package **PMA**. It retains the penalized-matrix-decomposition
+> formulation and orthogonal/non-orthogonal component options while
+> re-engineering the computation in Julia for lower intermediate memory
+> allocation and efficient execution.
+
 
 ## The data
 
-We use the same breast cancer copy-number matrix as we used in the demonstration of  PMD. The matrix contains $89$ samples, each with $2149$ genomic spots. The dataset is obtained via the `PMA` R package, where it serves as the worked example for the penalized matrix decomposition of Witten, Tibshirani & Hastie (2009) [2].
+We use the same breast cancer copy-number matrix as we used in the demonstration of  PMD. The matrix contains $89$ samples, each with $2149$ genomic spots [1]. The dataset is obtained via the `PMA` R package, where it serves as the worked example for the penalized matrix decomposition of Witten, Tibshirani & Hastie (2009) [2].
  Here genomic spots are variables. We note that, here the number of variables are far larger than the number of samples. Using naive PCA will lead to components or directions each with all the variables, this will lead to probles involving over parameterization. Hence, this dataset is well suited for SPC which will consider only a few number of variables per components. 
 
 

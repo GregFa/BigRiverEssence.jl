@@ -19,6 +19,13 @@ class side score $Yv$. Hence the optimization probem can be written as: $$\max_{
 The result gives, per component, a dense loading over all variables and sample scores that separate the classes.
 
 
+> **Implementation note.** This implementation adapts and streamlines
+> [`mixOmics::plsda`](https://mixomics.org/) from the R package **mixOmics**.
+> It preserves the dummy-encoded response formulation and regression-mode
+> deflation while re-engineering the calculations in Julia to reuse work arrays,
+> reduce intermediate memory allocation, and improve execution efficiency.
+
+
 
 ## The data
 

@@ -1,3 +1,11 @@
+# Implementation Notes:
+# This Julia implementation follows `PMA::SPC` from the R package PMA. Sparse
+# PCA is formulated as penalized matrix decomposition with an L1 constraint on
+# the variable loading and no sparsity constraint on the observation factor.
+# The method was re-engineered in Julia for lower intermediate allocation and
+# efficient execution.
+# https://search.r-project.org/CRAN/refmans/PMA/html/SPC.html
+
 """
 	Spc{T}
 

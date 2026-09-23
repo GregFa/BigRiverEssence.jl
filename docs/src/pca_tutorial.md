@@ -6,6 +6,13 @@ Suppose we have a data matrix with many correlated variables. Using naive regres
 
 In this documentation, we will depomstrate implementation of PCA using `BigRiverEssence.pca` on the well known `R` dataset, `iris`. We will then visualize the results using a scree plot, a principal-component scatter plot, and a biplot. 
 
+> **Implementation note.** This PCA implementation was developed directly in
+> Julia using the SVD and symmetric eigendecomposition routines provided by
+> Julia's [LinearAlgebra standard library](https://docs.julialang.org/en/v1/stdlib/LinearAlgebra/).
+> It was re-engineered to select an appropriate decomposition according to the
+> shape of the data, with an emphasis on lower intermediate memory allocation
+> and efficient execution.
+
 ## The Dataset
 
  The `iris` dataset is contains $4$ flower features (sepal length, sepal width, petal length, petal width) for $150$ plants. The plants are classified as one of the three species: Setosa, Versicolor, and Virginica. The `iris` dataset can be considered as a matrix with $n=150$ rows and $p=4$ variables, one for each feature.
