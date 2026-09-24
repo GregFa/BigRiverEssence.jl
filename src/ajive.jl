@@ -265,6 +265,177 @@ function _ajive_common_score_space(Vs::Vector{Matrix{Float64}}, init_ranks::Vect
     return Vcommon, common_svals
 end
 
+# -----------------------------------------------------------------------------
+# AJIVE random-direction bound
+# -----------------------------------------------------------------------------
+"""
+    ajive_random_orthonormal(n::Int, r::Int, rng::AbstractRNG)
+Generate a random orthonormal matrix of size `n×r` using QR decomposition.
+
+# Arguments
+- `n`: The number of rows in the matrix.
+- `r`: The number of columns in the matrix.
+- `rng`: The random number generator to use.
+
+# Values
+- `Q`: A random orthonormal matrix of size `n×r`.   
+
+*Notes:  A Gaussian matrix followed by QR is sufficient because AJIVE uses only
+the subspace spanned by the columns of Q, not the specific orthonormal basis.  The
+random-direction bound is used in AJIVE's Step 1 to estimate the largest 
+singular value of a random matrix with the same dimensions as the data block. 
+The bound is used to determine whether a candidate joint direction is strong enough 
+to be considered signal rather than noise.
+"""
+function _ajive_random_orthonormal(n::Int, r::Int, rng::AbstractRNG)
+    # Validate that the random subspace dimension is within the valid range
+    1 <= r <= n || throw(ArgumentError("random subspace dimension must satisfy 1 ≤ r ≤ n"))
+    
+    # Generate a random n×r matrix with standard normal entries
+    Z = randn(rng, n, r)
+
+    # Perform QR decomposition to obtain an orthonormal basis for the random subspace
+    F = qr!(Z)
+    
+    return Matrix{Float64}(F.Q[:, 1:r])
+end
+
+"""
+    _ajive_largest_svalsq(M::Matrix{Float64})
+
+Compute the largest singular value squared of the matrix M.
+
+# Arguments
+- `M`: A matrix.
+
+# Values
+- The largest singular value squared of the matrix M.
+
+*Notes: The computation uses the smaller Gram matrix instead of a full SVD, 
+which is useful because this quantity is evaluated repeatedly when simulating 
+the random-direction bound.*
+"""
+function _ajive_largest_svalsq(M::Matrix{Float64})
+    m, n = size(M)
+
+    # Compute the largest singular value squared of the matrix M using 
+    # the eigenvalues of M*M' or M'*M, depending on the dimensions of M.
+    if m <= n
+        G = Symmetric(M * transpose(M))
+    else
+        G = Symmetric(transpose(M) * M)
+    end
+    return eigmax(G)
+end
+
+"""
+    _ajive_random_direction_samples(n::Int, dims::Vector{Int};
+        n_samples::Int = 1000,
+        rng::AbstractRNG = Random.default_rng())
+        
+Generate samples of the largest singular value squared of a random matrix
+with the given dimensions.
+
+# Arguments
+- `n`: The ambient dimension of the random matrix.
+- `dims`: A vector of dimensions for each random subspace.
+- `n_samples`: The number of samples to generate.
+- `rng`: The random number generator to use.
+
+# Values
+- A vector of the largest singular value squared for each sample.
+
+*Notes: This function is used to simulate the random-direction bound in AJIVE.*
+"""
+function _ajive_random_direction_samples(n::Int, dims::Vector{Int};
+    n_samples::Int = 1000,
+    rng::AbstractRNG = Random.default_rng())
+
+    # Validate the input parameters for generating random direction samples
+    n > 0 || throw(ArgumentError("ambient sample-space dimension n must be positive"))
+    length(dims) >= 2 || throw(ArgumentError("random-direction bound requires at least two subspaces"))
+    n_samples > 0 || throw(ArgumentError("n_samples must be positive"))
+    
+    # Validate that each random subspace dimension is between 1 and n
+    all(r -> 1 <= r <= n, dims) ||
+        throw(ArgumentError("every random subspace dimension must be between 1 and n"))
+
+    # Compute the total rank of the stacked random subspaces
+    total_rank = sum(dims)
+
+    # Initialize the matrix M to hold the stacked random subspaces and 
+    # a vector to hold the largest singular value squared for each sample
+    M = Matrix{Float64}(undef, total_rank, n)
+
+    # Initialize a vector to hold the largest singular value squared 
+    # for each sample
+    samples = Vector{Float64}(undef, n_samples)
+
+    # Generate random direction samples by creating random orthonormal subspaces
+    for s in 1:n_samples
+        firstrow = 1
+        for r in dims
+            rows = firstrow:(firstrow + r - 1)
+            
+            # Generate a random orthonormal matrix of size n×r 
+            # and fill the corresponding rows of M
+            Q = _ajive_random_orthonormal(n, r, rng)
+            
+            # Fill the corresponding rows of M with the transpose of Q
+            @views M[rows, :] .= transpose(Q)
+            firstrow += r
+        end
+        samples[s] = _ajive_largest_svalsq(M)
+    end
+
+    return samples
+end
+
+
+"""
+    _ajive_random_direction_bound(n::Int, dims::Vector{Int};
+    n_samples::Int = 1000,
+    percentile::Real = 0.95,
+    rng::AbstractRNG = Random.default_rng())
+
+Compute the random-direction bound for AJIVE by generating samples of 
+the largest singular value squared of a random matrix with the given 
+dimensions and computing the requested quantile. 
+
+# Arguments
+- `n`: The ambient dimension of the random matrix.
+- `dims`: A vector of dimensions for each random subspace.
+- `n_samples`: The number of samples to generate.       
+- `percentile`: The quantile to compute for the random-direction bound.
+- `rng`: The random number generator to use.
+
+# Values
+- `threshold`: The computed random-direction bound (quantile of the samples).
+- `samples`: A vector of the largest singular value squared for each sample.    
+
+*Notes: This function is used to compute the random-direction bound for AJIVE.*
+"""
+function _ajive_random_direction_bound(n::Int, dims::Vector{Int};
+    n_samples::Int = 1000,
+    percentile::Real = 0.95,
+    rng::AbstractRNG = Random.default_rng())
+
+    # Validate the input parameters for generating the random-direction bound
+    0 < percentile < 1 || throw(ArgumentError("percentile must lie strictly between 0 and 1"))
+    
+    # Generate random direction samples and compute the requested 
+    # quantile as the threshold
+    samples = _ajive_random_direction_samples(n, dims;
+                n_samples = n_samples, rng = rng)
+    # Compute the requested quantile of the samples to 
+    # determine the threshold
+    threshold = quantile(samples, Float64(percentile))
+    
+    return threshold, samples
+end
+
+
+
 """
     _ajive_check_identifiability(Xs::Vector{Matrix{Float64}},
     VJ::Matrix{Float64}, thresholds::Vector{Float64})    
