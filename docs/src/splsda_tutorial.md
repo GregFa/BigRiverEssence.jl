@@ -18,6 +18,11 @@ class side score $Yv$ using an $L_1$ penalty applied to $u$. Hence the optimizat
 
 The result gives, per component, a set of `keepX` selected variables (the nonzero loadings) and sample scores that separate the classes.
 
+> **Implementation note.** This implementation adapts and streamlines
+> [`mixOmics::splsda`](https://mixomics.org/) from the R package **mixOmics**.
+> It retains mixOmics-style dummy encoding, regression-mode deflation, and
+> component-specific variable selection while re-engineering the computation in
+> Julia for lower intermediate memory allocation and efficient execution.
 
 
 ## The data

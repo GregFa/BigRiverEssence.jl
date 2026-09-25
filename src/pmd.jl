@@ -1,3 +1,10 @@
+# Implementation Notes:
+# This Julia implementation follows `PMA::PMD` from the R package PMA and the
+# penalized matrix decomposition algorithm of Witten, Tibshirani, and Hastie
+# (2009). It was re-engineered in Julia to reduce intermediate allocation and
+# improve execution efficiency.
+# https://search.r-project.org/CRAN/refmans/PMA/html/PMD.html
+
 """
 	Pmd{T}
 

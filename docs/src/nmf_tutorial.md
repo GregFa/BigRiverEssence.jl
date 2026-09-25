@@ -17,6 +17,15 @@ the well-known `R` dataset `iris`. We will examine the reconstruction, visualize
 the sample scores and component profiles, and transform observations using the
 fitted model.
 
+> **Implementation note.** This implementation adapts the coordinate-descent
+> formulation used by
+> [`sklearn.decomposition.NMF`](https://scikit-learn.org/stable/modules/generated/sklearn.decomposition.NMF.html)
+> to Julia. The objective, regularization scaling, initialization methods, and
+> projected-gradient stopping rule follow the scikit-learn coordinate-descent
+> path. The implementation was re-engineered for Julia's column-major storage,
+> with an emphasis on lower intermediate memory allocation and efficient
+> execution. 
+
 ## The Dataset
 
 The `iris` dataset contains four flower measurements (sepal length, sepal width,
@@ -77,7 +86,7 @@ for coloring the later plot; they are not supplied to `nmf`, so this remains an
 unsupervised analysis.
 
 ```@example nmf
-m = BigRiverEssence.nmf(X; k = 3, tol = 1e-6, maxiter = 2000)
+m = nmf(X; k = 3, tol = 1e-6, maxiter = 2000)
 (m.reconstruction_error, m.niter, m.converged)
 ```
 
@@ -90,8 +99,8 @@ The fitted `Nmf` object contains:
 - `m.niter`: the number of alternating iterations performed; and
 - `m.converged`: whether the requested stopping tolerance was reached.
 
-The default initialization is `:nndsvda`, when the requested rank permits it.
-The solver then uses alternating Fast HALS coordinate-descent updates while
+The default initialization is `:nndsvda`[1], when the requested rank permits it.
+The solver then uses alternating Fast HALS coordinate-descent updates[2] while
 maintaining nonnegative entries.
 
 ## Reconstruction plot
@@ -241,10 +250,12 @@ dimension reduction together with an additive, interpretable representation.
 
 ## References
 
-[1] Cichocki, A., & Phan, A.-H. (2009). Fast local algorithms for large scale
+[1] Boutsidis, C., & Gallopoulos, E. (2008). SVD based initialization: A head
+    start for nonnegative matrix factorization. *Pattern Recognition*, 41(4),
+    1350-1362.
+
+[2] Cichocki, A., & Phan, A.-H. (2009). Fast local algorithms for large scale
     nonnegative matrix and tensor factorizations. *IEICE Transactions on
     Fundamentals*, E92-A(3), 708-721.
 
-[2] Boutsidis, C., & Gallopoulos, E. (2008). SVD based initialization: A head
-    start for nonnegative matrix factorization. *Pattern Recognition*, 41(4),
-    1350-1362.
+
