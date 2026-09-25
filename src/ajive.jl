@@ -481,6 +481,7 @@ end
 #####################################################################
 # AJIVE Wedin perturbation bound and automatic joint-rank selection #
 #####################################################################
+
 """
     _ajive_random_orthogonal_subspace(basis::Matrix{Float64}, r::Int,
         rng::AbstractRNG)

@@ -13,6 +13,7 @@ makedocs(;
 		"Home" => "index.md",
 		"Canonical Correlation Analysis (CCA)" => "cca_tutorial.md",
 		"Joint and Individual Variation Explained (JIVE)" => "jive_tutorial.md",
+		"Angle-based Joint and Individual Variation Explained (AJIVE)" => "ajive_tutorial.md",
 		"Nonnegative Matrix Factorization (NMF)" => "nmf_tutorial.md",
 		"Partial Least Squares Discriminant Analysis (PLSDA)" => "plsda_tutorial.md",
 		"Partial Least Squares Kernel Regression (PLSkern)" => "plskern_tutorial.md",
