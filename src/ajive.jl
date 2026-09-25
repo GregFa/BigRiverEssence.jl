@@ -1,3 +1,37 @@
+########################
+# Structures for AJIVE #
+########################
+"""
+    AjiveRankDiagnostics{T}
+    
+    A struct to hold the diagnostics for the rank selection in AJIVE.
+
+# Fields
+- `random_threshold::T`: The threshold computed from the random-direction bound. It 
+is the quantile of the largest singular values squared of random matrices with the 
+same dimensions as the data blocks.
+- `wedin_threshold::T`: The threshold computed from the Wedin bound. It is 
+the quantile of the largest singular values squared of the Wedin matrices for 
+each block.
+- `combined_threshold::T`: The combined threshold. It is used for joint-rank selection 
+and is the maximum of the random-direction and Wedin thresholds.
+- `random_samples::Vector{T}`: The simulated largest squared sigular values from rendom
+subspaces of the random-direction bound.
+- `wedin_samples::Vector{T}`: The simulated multi-blocks Wedin lower-bound values.
+- `block_wedin_samples::Vector{Vector{T}}`: The block-specific samples of the estimated 
+`sin(θ)` pertubation bound.
+
+"""
+struct AjiveRankDiagnostics{T}
+    random_threshold::T
+    wedin_threshold::T
+    combined_threshold::T
+    random_samples::Vector{T}
+    wedin_samples::Vector{T}
+    block_wedin_samples::Vector{Vector{T}}
+end
+
+
 """
     Ajive{T}
 
@@ -49,10 +83,17 @@ struct Ajive{T}
     init_svals::Vector{Vector{T}}
     common_svals::Vector{T}
     dropped_joint::Vector{Int}
+    rank_diagnostics::Union{Nothing,AjiveRankDiagnostics{T}}
     means::Vector{Vector{T}}
     centered::Bool
     orientation::Symbol
 end
+
+
+#########
+# AJIVE # 
+#########
+
 
 """
     _ajive_prepare_blocks(Xs::AbstractVector{<:AbstractMatrix{<:Real}};
@@ -76,6 +117,7 @@ function _ajive_prepare_blocks(Xs::AbstractVector{<:AbstractMatrix{<:Real}};
     orientation::Symbol = :features_by_samples,
     center::Bool = true)
 
+    # Validate the input parameters for preparing the data blocks
     length(Xs) >= 2 || throw(ArgumentError("AJIVE requires at least two data blocks"))
     orientation in (:features_by_samples, :samples_by_features) ||
         throw(ArgumentError("orientation must be :features_by_samples or :samples_by_features"))
@@ -221,7 +263,8 @@ end
 
 
 """
-    ajive_common_score_space(Vs::Vector{Matrix{Float64}}, init_ranks::Vector{Int}, n::Int)
+    ajive_common_score_space(Vs::Vector{Matrix{Float64}}, init_ranks::Vector{Int}, 
+        n::Int)
 
 Compute the common score space from the right singular vectors of each block.
 
@@ -265,9 +308,9 @@ function _ajive_common_score_space(Vs::Vector{Matrix{Float64}}, init_ranks::Vect
     return Vcommon, common_svals
 end
 
-# -----------------------------------------------------------------------------
-# AJIVE random-direction bound
-# -----------------------------------------------------------------------------
+################################
+# AJIVE random-direction bound #
+################################
 """
     ajive_random_orthonormal(n::Int, r::Int, rng::AbstractRNG)
 Generate a random orthonormal matrix of size `n×r` using QR decomposition.
@@ -325,6 +368,7 @@ function _ajive_largest_svalsq(M::Matrix{Float64})
     else
         G = Symmetric(transpose(M) * M)
     end
+
     return eigmax(G)
 end
 
@@ -434,6 +478,204 @@ function _ajive_random_direction_bound(n::Int, dims::Vector{Int};
     return threshold, samples
 end
 
+#####################################################################
+# AJIVE Wedin perturbation bound and automatic joint-rank selection #
+#####################################################################
+"""
+    _ajive_random_orthogonal_subspace(basis::Matrix{Float64}, r::Int,
+        rng::AbstractRNG)
+
+Draw a random `r`-dimensional orthonormal subspace that is orthogonal to the
+columns of `basis`. This is the resampling device used by AJIVE to estimate the
+unknown projected-noise terms in Wedin's sin(θ) perturbation bound.
+
+A true `r`-dimensional orthogonal subspace exists only when the orthogonal
+complement has dimension at least `r`.
+
+# Arguments
+- `basis`: A matrix whose columns define the signal subspace.
+- `r`: The dimension of the desired orthogonal subspace.
+- `rng`: The random number generator to use.
+
+# Values
+- `Q`: A matrix whose columns form an orthonormal basis for the orthogonal subspace.
+
+"""
+function _ajive_random_orthogonal_subspace(basis::Matrix{Float64}, r::Int,
+    rng::AbstractRNG)
+
+    dim, rbasis = size(basis)
+
+    # Validate the input basis and requested subspace dimension.
+    rbasis == r || throw(ArgumentError("basis must have exactly r columns"))
+    r > 0 || throw(ArgumentError("r must be positive"))
+    dim - r >= r || throw(ArgumentError(
+        "Wedin resampling needs an r-dimensional subspace orthogonal to a rank-r basis; " *
+        "require ambient dimension ≥ 2r (got dimension=$dim, r=$r)"))
+
+    # Generate a random matrix with the specified dimensions.
+    Z = randn(rng, dim, r)
+    
+    # Project random directions off the estimated signal subspace.
+    Z .-= basis * (transpose(basis) * Z)
+    
+    # Perform a QR decomposition of the resulting matrix.
+    F = qr!(Z)
+    
+    return Matrix{Float64}(F.Q[:, 1:r])
+end
+
+
+"""
+    _ajive_wedin_samples(X::Matrix{Float64}, U::Matrix{Float64},
+    svals::Vector{Float64}, V::Matrix{Float64};
+    n_samples::Int = 1000, rng::AbstractRNG = Random.default_rng()) 
+
+Estimate the block-specific Wedin perturbation distribution for one AJIVE data
+block in the paper's features x samples orientation.
+
+For a rank-`r` initial signal approximation `U * Diagonal(svals) * V'`, each
+replicate independently samples
+
+- an `r`-dimensional subspace `Vstar` orthogonal to `V`, and
+- an `r`-dimensional subspace `Ustar` orthogonal to `U`,
+
+then evaluates
+
+`min(max(opnorm(X * Vstar), opnorm(X' * Ustar)) / svals[end], 1)`.
+
+These samples estimate the unknown `sin(theta)` term in Wedin's bound.
+
+# Arguments 
+- `X`: The data block matrix.
+- `U`: The left singular vectors of the initial signal approximation.
+- `svals`: The singular values of the initial signal approximation.
+- `V`: The right singular vectors of the initial signal approximation.
+- `n_samples`: The number of samples to generate.
+- `rng`: The random number generator to use.
+
+# Values
+- A vector of estimated `sin(theta)` values for the Wedin perturbation bound.
+
+"""
+function _ajive_wedin_samples(X::Matrix{Float64}, U::Matrix{Float64},
+    svals::Vector{Float64}, V::Matrix{Float64};
+    n_samples::Int = 1000, rng::AbstractRNG = Random.default_rng())
+
+    # Validate the input parameters for generating Wedin samples
+    n_samples > 0 || throw(ArgumentError("n_samples must be positive"))
+    r = length(svals)
+    r > 0 || throw(ArgumentError("Wedin resampling requires a positive signal rank"))
+    size(U, 2) == r || throw(ArgumentError("U must have one column per retained singular value"))
+    size(V, 2) == r || throw(ArgumentError("V must have one column per retained singular value"))
+    size(U, 1) == size(X, 1) || throw(DimensionMismatch("U is incompatible with X"))
+    size(V, 1) == size(X, 2) || throw(DimensionMismatch("V is incompatible with X"))
+
+    # Validate complement dimensions once, before entering the Monte Carlo loop.
+    size(U, 1) - r >= r || throw(ArgumentError(
+        "Wedin resampling for the feature-side signal basis requires p ≥ 2r"))
+    size(V, 1) - r >= r || throw(ArgumentError(
+        "Wedin resampling for the sample-side signal basis requires n ≥ 2r"))
+
+    # Compute the smallest retained singular value, 
+    # which is used to normalize the perturbation ratio.    
+    sigma_min = svals[end]
+    samples = Vector{Float64}(undef, n_samples)
+
+    # A zero weakest retained singular value makes the perturbation ratio
+    # unbounded; clipping by one gives the maximally conservative Wedin value.
+    if sigma_min <= eps(Float64)
+        fill!(samples, 1.0)
+        return samples
+    end
+
+    # Generate Wedin samples by drawing random orthogonal 
+    # subspaces and computing the perturbation ratio.
+    for s in 1:n_samples
+        Vstar = _ajive_random_orthogonal_subspace(V, r, rng)
+        Ustar = _ajive_random_orthogonal_subspace(U, r, rng)
+
+        # Compute the noise levels in the right and left directions.
+        # This is done by computing the operator norm of the product 
+        # of the data matrix and the random subspace.
+        right_noise = opnorm(X * Vstar)
+        left_noise = opnorm(transpose(X) * Ustar)
+        samples[s] = min(max(right_noise, left_noise) / sigma_min, 1.0)
+    end
+
+    return samples
+end
+
+
+
+"""
+    _ajive_wedin_bound(Xs::Vector{Matrix{Float64}},
+        Us::Vector{Matrix{Float64}}, svals::Vector{Vector{Float64}},
+        Vs::Vector{Matrix{Float64}};
+        n_samples::Int = 1000,
+        percentile::Real = 0.05,
+        rng::AbstractRNG = Random.default_rng())
+
+Estimate the AJIVE joint rank by combining the random-direction and Wedin
+bounds. The effective squared-singular-value cutoff is the larger of the two
+bounds, and the candidate joint rank is the number of common-space squared
+singular values above that cutoff.
+
+# Arguments
+- `Xs`: A vector of matrices containing the data for each block.
+- `Us`: A vector of matrices containing the left singular vectors for each block.
+- `svals`: A vector of vectors containing the singular values for each block.
+- `Vs`: A vector of matrices containing the right singular vectors for each block.
+- `n_samples`: The number of samples to generate for the Wedin bound.
+- `percentile`: The quantile to compute for the Wedin bound.
+- `rng`: The random number generator to use.    
+
+# Values
+- `threshold`: The computed Wedin bound (quantile of the samples).
+- `samples`: A vector of the Wedin perturbation estimates for each sample.
+- `block_samples`: A vector of vectors containing the block-specific Wedin 
+    samples for each block
+
+"""
+function _ajive_wedin_bound(Xs::Vector{Matrix{Float64}},
+    Us::Vector{Matrix{Float64}}, svals::Vector{Vector{Float64}},
+    Vs::Vector{Matrix{Float64}};
+    n_samples::Int = 1000,
+    percentile::Real = 0.05,
+    rng::AbstractRNG = Random.default_rng())
+
+    # Validate the input parameters for generating the Wedin bound
+    k = length(Xs)
+
+    # The Wedin bound requires at least two data blocks to compute 
+    # the perturbation distribution across blocks.
+    k >= 2 || throw(ArgumentError("Wedin bound requires at least two data blocks"))
+    length(Us) == k && length(svals) == k && length(Vs) == k ||
+        throw(ArgumentError("Xs, Us, svals, and Vs must contain the same number of blocks"))
+    n_samples > 0 || throw(ArgumentError("n_samples must be positive"))
+    0 < percentile < 1 || throw(ArgumentError("percentile must lie strictly between 0 and 1"))
+
+    # Compute the block-specific Wedin samples for each data block
+    block_samples = Vector{Vector{Float64}}(undef, k)
+
+    # Compute the block-specific Wedin samples for each data block
+    for b in 1:k
+        block_samples[b] = _ajive_wedin_samples(
+            Xs[b], Us[b], svals[b], Vs[b]; n_samples = n_samples, rng = rng)
+    end
+
+    # Compute the combined Wedin samples by subtracting the squared block samples
+    samples = fill(Float64(k), n_samples)
+    for b in 1:k
+        @. samples -= block_samples[b]^2
+    end
+
+    # Compute the threshold for the combined Wedin samples
+    threshold = quantile(samples, Float64(percentile))
+
+
+    return threshold, samples, block_samples
+end
 
 
 """
@@ -574,70 +816,137 @@ end
 
 """
 
-    ajive(Xs; init_ranks, joint_rank, indiv_ranks=nothing,
-          orientation=:features_by_samples, center=true,
-          check_joint_identifiability=true)
+    ajive(Xs::AbstractVector{<:AbstractMatrix{<:Real}};
+        init_ranks::Vector{Int},
+        joint_rank::Union{Nothing,Int,Symbol} = :auto,
+        indiv_ranks::Union{Nothing,Vector{Int}} = nothing,
+        orientation::Symbol = :features_by_samples,
+        center::Bool = true,
+        check_joint_identifiability::Bool = true,
+        n_rand_samples::Int = 1000,
+        rand_percentile::Real = 0.95,
+        n_wedin_samples::Int = 1000,
+        wedin_percentile::Real = 0.05,
+        rng::AbstractRNG = Random.default_rng())
 
-    Performs the AJIVE (Adaptive Joint and Individual Vectors Estimation) algorithm on a set of data matrices.
 
-    This implementation follows the three-step AJIVE construction of Feng,
-    Jiang, Hannig & Marron (2018), while deliberately leaving automatic joint-rank
-    selection (random-direction and Wedin bounds) for a subsequent extension.
-    Internally all blocks use the paper's features × samples convention (`pᵢ×n`).
+Fit Angle-based Joint and Individual Variation Explained (AJIVE).
 
-    # Arguments
-    - `Xs`: A vector of at least 2 data matrices containing the same samples in the same order.
-    - `init_ranks`: A vector of initial ranks for each data matrix.Because the
-        associated Step-1 threshold uses `σᵣ` and `σᵣ₊₁`, each rank must be at most
-        `min(pᵢ,n)-1`.
-    - `joint_rank`: Candidate joint rank used in Step 2. It must be between 0
-        and `minimum(init_ranks)`.
-    - `indiv_ranks`: An optional vector of individual ranks for each data matrix. 
-        If nothing, the individual ranks are computed by retaining singular values larger than the corresponding Step-1
-        threshold.
-    - `orientation`: `:features_by_samples` (default) for `pᵢ×n` input, or
-        `:samples_by_features` for `n×pᵢ` input. The latter is materialized once as
-        `pᵢ×n` before the AJIVE computation.
-    - `center`: Whether to center each feature across samples. Defaults to true.
-    - `check_joint_identifiability`: Whether to apply AJIVE's Step-3 check that
-        every candidate joint direction remains above the Step-1 signal threshold in
-        every block. Defaults to true. If a direction is dropped, the final `m.r` can
-        be smaller than the supplied `joint_rank`.
+This implementation follows the three-step AJIVE construction of Feng, Jiang,
+Hannig & Marron (2018) using the paper's features × samples convention
+(`pᵢ×n`) internally. When `joint_rank` is `:auto` (default) or `nothing`, Step 2
+estimates it from the random-direction and Wedin bounds. Supplying an integer
+keeps the deterministic fixed-rank behavior from Milestone 1.
 
-    # Returns
-    - An `Ajive` object containing the results of the AJIVE algorithm. `J`, `I`, and `E` are always returned in the canonical
-    features × samples orientation and decompose the centered canonical blocks:
-    `X_centered = J + I + E`.
+# Arguments
+- `Xs`: At least two data blocks containing the same samples in the same order.
+- `init_ranks::Vector{Int}`: Initial signal rank for each block. Because the
+  associated Step-1 threshold uses `σᵣ` and `σᵣ₊₁`, each rank must be at most
+  `min(pᵢ,n)-1`.
+- `joint_rank`: Candidate joint rank. When `nothing` or `:auto` (default),
+  estimate the rank from the random-direction and Wedin bounds.
+- `indiv_ranks`: Optional individual ranks. When omitted, Step 3 estimates each
+  rank by retaining singular values larger than the corresponding Step-1
+  threshold.
+- `orientation::Symbol`: `:features_by_samples` (default) for `pᵢ×n` input, or
+  `:samples_by_features` for `n×pᵢ` input. The latter is materialized once as
+  `pᵢ×n` before the AJIVE computation.
+- `center::Bool`: Whether to center each feature across samples. Defaults to true.
+- `check_joint_identifiability::Bool`: Whether to apply AJIVE's Step-3 check that
+  every candidate joint direction remains above the Step-1 signal threshold in
+  every block. Defaults to true.
+- `n_rand_samples::Int`: Number of Monte Carlo samples for the random-direction
+  bound when estimating `joint_rank`. Defaults to 1000.
+- `rand_percentile::Real`: Upper quantile of the random-direction squared
+  singular-value distribution. Defaults to 0.95.
+- `n_wedin_samples::Int`: Number of Monte Carlo samples for the Wedin bound when
+  estimating `joint_rank`. Defaults to 1000.
+- `wedin_percentile::Real`: Lower quantile of the multi-block Wedin lower-bound
+  distribution. Defaults to 0.05.
+- `rng::AbstractRNG`: Random-number generator used by the automatic rank
+  estimation. Pass a seeded RNG for reproducibility.
 
-    # Notes
-    The common normalized scores are stored in `m.S` with shape `r×n`. Their
-    transpose is the orthonormal basis `V_J` of the estimated joint score subspace.
-    The implementation avoids explicitly forming the `n×n` projector
-    `V_J * V_J'`; instead each joint block is computed as `(X * V_J) * V_J'`.
+# Value
+An [`Ajive`](@ref) object. `J`, `I`, and `E` are always returned in the canonical
+features × samples orientation and decompose the centered canonical blocks:
+`X_centered = J + I + E`.
+
+When the joint rank is estimated automatically, `m.rank_diagnostics` contains
+both simulated null distributions and their thresholds. When an integer joint
+rank is supplied, `m.rank_diagnostics === nothing`.
+
+# Notes
+The common normalized scores are stored in `m.S` with shape `r×n`. Their
+transpose is the orthonormal basis `V_J` of the estimated joint score subspace.
+The implementation avoids explicitly forming the `n×n` projector
+`V_J * V_J'`; instead each joint block is computed as `(X * V_J) * V_J'`.
+
+The Wedin resampling method draws an `r_k`-dimensional random subspace in the
+orthogonal complement of each estimated rank-`r_k` signal space. Consequently,
+for automatic rank estimation this implementation requires both `p_k ≥ 2r_k`
+and `n ≥ 2r_k` for every block. A supplied `joint_rank` bypasses Wedin
+resampling and therefore does not impose this additional condition.
+
 """
 function ajive(Xs::AbstractVector{<:AbstractMatrix{<:Real}};
-    init_ranks::Vector{Int},
-    joint_rank::Int,
-    indiv_ranks::Union{Nothing,Vector{Int}} = nothing,
-    orientation::Symbol = :features_by_samples,
-    center::Bool = true,
-    check_joint_identifiability::Bool = true)
+        init_ranks::Vector{Int},
+        joint_rank::Union{Nothing,Int,Symbol} = :auto,
+        indiv_ranks::Union{Nothing,Vector{Int}} = nothing,
+        orientation::Symbol = :features_by_samples,
+        center::Bool = true,
+        check_joint_identifiability::Bool = true,
+        n_rand_samples::Int = 1000,
+        rand_percentile::Real = 0.95,
+        n_wedin_samples::Int = 1000,
+        wedin_percentile::Real = 0.05,
+        rng::AbstractRNG = Random.default_rng())
+
+    # Validate the input parameters for the AJIVE algorithm
+    joint_rank_fixed = if joint_rank === nothing || joint_rank === :auto
+        nothing
+    elseif joint_rank isa Int
+        joint_rank
+    else
+        throw(ArgumentError("joint_rank must be an integer, nothing, or :auto"))
+    end
 
     # Prepare the data blocks: center if requested, ensure Float64 type, 
     # and check dimensions
     Xc, means, n = _ajive_prepare_blocks(Xs; orientation = orientation, center = center)
-    _ajive_check_ranks(Xc, init_ranks, joint_rank, indiv_ranks)
+    _ajive_check_ranks(Xc, init_ranks, joint_rank_fixed, indiv_ranks)
 
     # Step 1: initial signal-space extraction.
-    _, _, Vs, thresholds, init_svals = _ajive_initial_signal_svd(Xc, init_ranks)
+    Us, svals, Vs, thresholds, init_svals =
+        _ajive_initial_signal_svd(Xc, init_ranks)
 
     # Step 2: flag-mean/common score-space SVD.
     Vcommon, common_svals = _ajive_common_score_space(Vs, init_ranks, n)
-    VJ = joint_rank == 0 ? zeros(Float64, n, 0) : Matrix(@view Vcommon[:, 1:joint_rank])
+
+    # Step 2a: estimate the joint rank if not fixed by the user. 
+    # The candidate joint rank is the number of common-space singular 
+    # values above the larger of the random-direction and Wedin bounds.
+    rank_diagnostics = nothing
+    candidate_r = if joint_rank_fixed === nothing
+        rhat, diagnostics = _ajive_estimate_joint_rank(
+            Xc, Us, svals, Vs, common_svals, n, init_ranks;
+            n_rand_samples = n_rand_samples,
+            rand_percentile = rand_percentile,
+            n_wedin_samples = n_wedin_samples,
+            wedin_percentile = wedin_percentile,
+            rng = rng)
+        rank_diagnostics = diagnostics
+        rhat
+    else
+        joint_rank_fixed
+    end
+
+    # Step 2b: compute the joint space.
+    VJ = candidate_r == 0 ? zeros(Float64, n, 0) :
+        Matrix(@view Vcommon[:, 1:candidate_r])
 
     # Step 3a: ensure every candidate direction is signal in every block.
     dropped_joint = Int[]
-    if check_joint_identifiability && joint_rank > 0
+    if check_joint_identifiability && candidate_r > 0
         VJ, dropped_joint = _ajive_check_identifiability(Xc, VJ, thresholds)
     end
     r = size(VJ, 2)
@@ -646,11 +955,12 @@ function ajive(Xs::AbstractVector{<:AbstractMatrix{<:Real}};
     J, Iblocks, E, U, Si, Wi, ri = _ajive_final_decomposition(
         Xc, VJ, thresholds; indiv_ranks = indiv_ranks)
 
+    # Compute the common normalized scores matrix S as the transpose of VJ    
     S = Matrix{Float64}(transpose(VJ))
-    
+
     return Ajive{Float64}(J, Iblocks, E, S, U, Si, Wi,
-        copy(init_ranks), joint_rank, r, ri, thresholds, init_svals,
-        common_svals, dropped_joint, means, center, orientation)
+        copy(init_ranks), candidate_r, r, ri, thresholds, init_svals,
+        common_svals, dropped_joint, rank_diagnostics, means, center, orientation)
 end
 
 """
